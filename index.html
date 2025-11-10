@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gemini AI + GIF Generator</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: #333;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    
+    .container {
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      padding: 40px;
+      max-width: 900px;
+      margin: 40px auto;
+    }
+    
+    h1 {
+      color: #667eea;
+      text-align: center;
+      margin-bottom: 10px;
+      font-size: 2.5em;
+    }
+    
+    .subtitle {
+      text-align: center;
+      color: #666;
+      margin-bottom: 30px;
+      font-size: 1.1em;
+    }
+    
+    .input-container {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    
+    input {
+      flex: 1;
+      padding: 15px;
+      border: 2px solid #e0e0e0;
+      border-radius: 10px;
+      font-size: 16px;
+      transition: border-color 0.3s;
+    }
+    
+    input:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+    
+    button {
+      padding: 15px 30px;
+      border: none;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: bold;
+      transition: transform 0.2s;
+    }
+    
+    button:hover {
+      transform: translateY(-2px);
+    }
+    
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+      transform: none;
+    }
+    
+    .options {
+      margin-bottom: 20px;
+    }
+    
+    .checkbox-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px;
+      background: #f8f9fa;
+      border-radius: 8px;
+    }
+    
+    .checkbox-container input[type="checkbox"] {
+      width: 20px;
+      height: 20px;
+      cursor: pointer;
+    }
+    
+    .result {
+      background: #f8f9fa;
+      padding: 25px;
+      border-radius: 15px;
+      border-left: 5px solid #667eea;
+      display: none;
+      margin-bottom: 20px;
+    }
+    
+    .result.show {
+      display: block;
+      animation: fadeIn 0.5s;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .result-title {
+      font-weight: bold;
+      color: #667eea;
+      margin-bottom: 10px;
+      font-size: 1.1em;
+    }
+    
+    .result-content {
+      line-height: 1.8;
+      color: #333;
+      white-space: pre-wrap;
+    }
+    
+    .loading {
+      text-align: center;
+      color: #667eea;
+      font-size: 1.2em;
+    }
+    
+    .error {
+      background: #fee;
+      border-left-color: #e74c3c;
+      color: #c0392b;
+    }
+    
+    .gif-gallery {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-top: 20px;
+    }
+    
+    .gif-item {
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      transition: transform 0.2s;
+    }
+    
+    .gif-item:hover {
+      transform: scale(1.05);
+    }
+    
+    .gif-item img {
+      width: 100%;
+      height: 200px;
+      object-fit: cover;
+      display: block;
+    }
+    
+    .gif-title {
+      padding: 10px;
+      background: white;
+      font-size: 0.9em;
+      text-align: center;
+      color: #666;
+    }
+    
+    .examples {
+      background: #e8f4f8;
+      padding: 20px;
+      border-radius: 10px;
+      margin-top: 30px;
+    }
+    
+    .examples h3 {
+      color: #667eea;
+      margin-bottom: 15px;
+    }
+    
+    .example-item {
+      background: white;
+      padding: 10px;
+      margin: 8px 0;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    
+    .example-item:hover {
+      background: #f0f0f0;
+    }
+    
+    .feature-badge {
+      display: inline-block;
+      background: #667eea;
+      color: white;
+      padding: 4px 12px;
+      border-radius: 15px;
+      font-size: 0.85em;
+      margin-left: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎨 AI Content Generator</h1>
+    <p class="subtitle">Generate creative ideas with Gemini AI + Find real GIFs! <span class="feature-badge">NEW</span></p>
+
+    <div class="input-container">
+      <input 
+        id="prompt" 
+        placeholder="e.g., 'funny cat playing piano'" 
+        onkeypress="if(event.key === 'Enter') generate()"
+      >
+      <button id="generateBtn" onclick="generate()">Generate</button>
+    </div>
+
+    <div class="options">
+      <div class="checkbox-container">
+        <input type="checkbox" id="includeMedia" checked>
+        <label for="includeMedia">
+          🎬 Also search for real GIFs related to my prompt
+        </label>
+      </div>
+    </div>
+
+    <div class="result" id="result"></div>
+    <div id="gifGallery"></div>
+
+    <div class="examples">
+      <h3>💡 Try These Prompts:</h3>
+      <div class="example-item" onclick="useExample(this)">
+        funny cat playing piano
+      </div>
+      <div class="example-item" onclick="useExample(this)">
+        space rocket launching
+      </div>
+      <div class="example-item" onclick="useExample(this)">
+        dancing robot
+      </div>
+      <div class="example-item" onclick="useExample(this)">
+        cute puppy learning tricks
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function useExample(element) {
+      document.getElementById("prompt").value = element.textContent.trim();
+      document.getElementById("prompt").focus();
+    }
+
+    async function generate() {
+      const promptInput = document.getElementById("prompt");
+      const prompt = promptInput.value.trim();
+      const resultDiv = document.getElementById("result");
+      const gifGallery = document.getElementById("gifGallery");
+      const btn = document.getElementById("generateBtn");
+      const includeMedia = document.getElementById("includeMedia").checked;
+      
+      if (!prompt) {
+        alert("⚠️ Please enter a prompt!");
+        promptInput.focus();
+        return;
+      }
+
+      // Clear previous results
+      gifGallery.innerHTML = "";
+      
+      // Show loading state
+      resultDiv.className = "result show";
+      resultDiv.innerHTML = '<div class="loading">⏳ Generating content with AI...</div>';
+      btn.disabled = true;
+      btn.textContent = "Generating...";
+
+      try {
+        const url = `/generate?prompt=${encodeURIComponent(prompt)}&include_media=${includeMedia}`;
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (data.status === "success" && (data.idea || data.output)) {
+          const output = data.idea || data.output;
+          const remainingRequests = data.requests_remaining || "N/A";
+          
+          resultDiv.className = "result show";
+          resultDiv.innerHTML = `
+            <div class="result-title">📝 Your Prompt:</div>
+            <div class="result-content">${escapeHtml(prompt)}</div>
+            <br>
+            <div class="result-title">✨ AI-Generated Idea:</div>
+            <div class="result-content">${escapeHtml(output)}</div>
+            <br>
+            <div style="font-size: 0.9em; color: #666;">
+              <strong>Model:</strong> ${data.model_used || 'gemini'} | 
+              <strong>Requests remaining:</strong> ${remainingRequests}/2
+            </div>
+          `;
+
+          // Display related GIFs if available
+          if (data.related_gifs && data.related_gifs.length > 0) {
+            gifGallery.innerHTML = `
+              <div style="margin: 20px 0;">
+                <h3 style="color: #667eea; margin-bottom: 15px;">
+                  🎬 Related GIFs (${data.related_gifs.length})
+                </h3>
+                <div class="gif-gallery">
+                  ${data.related_gifs.map(gif => `
+                    <div class="gif-item">
+                      <img src="${gif.url}" alt="${escapeHtml(gif.title)}">
+                      <div class="gif-title">${escapeHtml(gif.title)}</div>
+                    </div>
+                  `).join('')}
+                </div>
+                <p style="text-align: center; margin-top: 15px; color: #666; font-size: 0.9em;">
+                  Source: ${data.related_gifs[0].source}
+                </p>
+              </div>
+            `;
+          }
+          
+        } else if (data.status === "rate_limited" || data.status === "quota_exceeded") {
+          resultDiv.className = "result show error";
+          resultDiv.innerHTML = `
+            <div class="result-title">⏰ Rate Limit Reached</div>
+            <div class="result-content">
+              ${escapeHtml(data.error)}<br><br>
+              <strong>Please wait ${data.wait_seconds} seconds before trying again.</strong><br><br>
+              💡 <strong>Tip:</strong> Free tier allows 2 requests per minute.
+            </div>
+          `;
+          
+          // Countdown
+          let countdown = data.wait_seconds;
+          const interval = setInterval(() => {
+            countdown--;
+            if (countdown <= 0) {
+              clearInterval(interval);
+              resultDiv.innerHTML += `<br><div style="color: green; font-weight: bold;">✅ Ready to try again!</div>`;
+              btn.disabled = false;
+              btn.textContent = "Generate";
+            } else {
+              const contentDiv = resultDiv.querySelector('.result-content');
+              if (contentDiv) {
+                contentDiv.innerHTML = `
+                  ${escapeHtml(data.error)}<br><br>
+                  <strong>Retry in ${countdown} seconds...</strong><br><br>
+                  💡 <strong>Tip:</strong> Free tier allows 2 requests per minute.
+                `;
+              }
+            }
+          }, 1000);
+          
+        } else if (data.error) {
+          resultDiv.className = "result show error";
+          resultDiv.innerHTML = `
+            <div class="result-title">❌ Error:</div>
+            <div class="result-content">${escapeHtml(data.error)}</div>
+          `;
+        }
+      } catch (err) {
+        console.error("Error:", err);
+        resultDiv.className = "result show error";
+        resultDiv.innerHTML = `
+          <div class="result-title">❌ Connection Error</div>
+          <div class="result-content">Failed to connect. Make sure the server is running.</div>
+        `;
+      } finally {
+        if (!resultDiv.innerHTML.includes("wait")) {
+          btn.disabled = false;
+          btn.textContent = "Generate";
+        }
+      }
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+  </script>
+</body>
+</html>
