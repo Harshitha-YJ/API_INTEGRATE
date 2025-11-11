@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Gemini AI + GIF Generator</title>
+  <title>Gemini AI Generator</title>
   <style>
     * {
       margin: 0;
@@ -14,7 +14,6 @@
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: #333;
       min-height: 100vh;
       padding: 20px;
     }
@@ -74,7 +73,7 @@
       transition: transform 0.2s;
     }
     
-    button:hover {
+    button:hover:not(:disabled) {
       transform: translateY(-2px);
     }
     
@@ -84,10 +83,6 @@
       transform: none;
     }
     
-    .options {
-      margin-bottom: 20px;
-    }
-    
     .checkbox-container {
       display: flex;
       align-items: center;
@@ -95,6 +90,7 @@
       padding: 10px;
       background: #f8f9fa;
       border-radius: 8px;
+      margin-bottom: 20px;
     }
     
     .checkbox-container input[type="checkbox"] {
@@ -204,57 +200,45 @@
     .example-item:hover {
       background: #f0f0f0;
     }
-    
-    .feature-badge {
-      display: inline-block;
-      background: #667eea;
-      color: white;
-      padding: 4px 12px;
-      border-radius: 15px;
-      font-size: 0.85em;
-      margin-left: 10px;
-    }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>🎨 AI Content Generator</h1>
-    <p class="subtitle">Generate creative ideas with Gemini AI + Find real GIFs! <span class="feature-badge">NEW</span></p>
+    <h1>🎨 Gemini AI Generator</h1>
+    <p class="subtitle">Generate creative GIF and video ideas using Google's Gemini AI</p>
 
     <div class="input-container">
       <input 
         id="prompt" 
-        placeholder="e.g., 'funny cat playing piano'" 
+        placeholder="e.g., 'Design a GIF idea showing the process of making pizza'" 
         onkeypress="if(event.key === 'Enter') generate()"
       >
       <button id="generateBtn" onclick="generate()">Generate</button>
     </div>
 
-    <div class="options">
-      <div class="checkbox-container">
-        <input type="checkbox" id="includeMedia" checked>
-        <label for="includeMedia">
-          🎬 Also search for real GIFs related to my prompt
-        </label>
-      </div>
+    <div class="checkbox-container">
+      <input type="checkbox" id="includeMedia" checked>
+      <label for="includeMedia">
+        🎬 Also search for real GIFs related to my prompt
+      </label>
     </div>
 
     <div class="result" id="result"></div>
     <div id="gifGallery"></div>
 
     <div class="examples">
-      <h3>💡 Try These Prompts:</h3>
+      <h3>💡 Example Prompts:</h3>
       <div class="example-item" onclick="useExample(this)">
-        funny cat playing piano
+        Design a GIF idea showing the process of making pizza
       </div>
       <div class="example-item" onclick="useExample(this)">
-        space rocket launching
+        Create a concept for an animated logo reveal
       </div>
       <div class="example-item" onclick="useExample(this)">
-        dancing robot
+        Suggest a funny GIF showing a cat learning to code
       </div>
       <div class="example-item" onclick="useExample(this)">
-        cute puppy learning tricks
+        Design a time-lapse GIF concept of a city sunrise
       </div>
     </div>
   </div>
@@ -282,9 +266,9 @@
       // Clear previous results
       gifGallery.innerHTML = "";
       
-      // Show loading state
+      // Show loading
       resultDiv.className = "result show";
-      resultDiv.innerHTML = '<div class="loading">⏳ Generating content with AI...</div>';
+      resultDiv.innerHTML = '<div class="loading">⏳ Generating with Gemini AI...</div>';
       btn.disabled = true;
       btn.textContent = "Generating...";
 
@@ -293,25 +277,21 @@
         const response = await fetch(url);
         const data = await response.json();
 
-        if (data.status === "success" && (data.idea || data.output)) {
-          const output = data.idea || data.output;
-          const remainingRequests = data.requests_remaining || "N/A";
-          
+        if (data.status === "success") {
           resultDiv.className = "result show";
           resultDiv.innerHTML = `
             <div class="result-title">📝 Your Prompt:</div>
             <div class="result-content">${escapeHtml(prompt)}</div>
             <br>
             <div class="result-title">✨ AI-Generated Idea:</div>
-            <div class="result-content">${escapeHtml(output)}</div>
+            <div class="result-content">${escapeHtml(data.output)}</div>
             <br>
             <div style="font-size: 0.9em; color: #666;">
-              <strong>Model:</strong> ${data.model_used || 'gemini'} | 
-              <strong>Requests remaining:</strong> ${remainingRequests}/2
+              <strong>Model:</strong> ${data.model_used || 'gemini'}
             </div>
           `;
 
-          // Display related GIFs if available
+          // Display GIFs
           if (data.related_gifs && data.related_gifs.length > 0) {
             gifGallery.innerHTML = `
               <div style="margin: 20px 0;">
@@ -326,26 +306,24 @@
                     </div>
                   `).join('')}
                 </div>
-                <p style="text-align: center; margin-top: 15px; color: #666; font-size: 0.9em;">
-                  Source: ${data.related_gifs[0].source}
-                </p>
               </div>
             `;
           }
           
-        } else if (data.status === "rate_limited" || data.status === "quota_exceeded") {
+        } else if (data.status === "quota_exceeded") {
           resultDiv.className = "result show error";
+          const waitTime = data.wait_seconds || 60;
           resultDiv.innerHTML = `
-            <div class="result-title">⏰ Rate Limit Reached</div>
+            <div class="result-title">⏰ API Rate Limit</div>
             <div class="result-content">
               ${escapeHtml(data.error)}<br><br>
-              <strong>Please wait ${data.wait_seconds} seconds before trying again.</strong><br><br>
-              💡 <strong>Tip:</strong> Free tier allows 2 requests per minute.
+              <strong>${escapeHtml(data.message)}</strong><br><br>
+              💡 ${escapeHtml(data.tip || 'Please wait before trying again.')}
             </div>
           `;
           
           // Countdown
-          let countdown = data.wait_seconds;
+          let countdown = waitTime;
           const interval = setInterval(() => {
             countdown--;
             if (countdown <= 0) {
@@ -359,17 +337,17 @@
                 contentDiv.innerHTML = `
                   ${escapeHtml(data.error)}<br><br>
                   <strong>Retry in ${countdown} seconds...</strong><br><br>
-                  💡 <strong>Tip:</strong> Free tier allows 2 requests per minute.
+                  💡 ${escapeHtml(data.tip || 'Please wait before trying again.')}
                 `;
               }
             }
           }, 1000);
           
-        } else if (data.error) {
+        } else {
           resultDiv.className = "result show error";
           resultDiv.innerHTML = `
-            <div class="result-title">❌ Error:</div>
-            <div class="result-content">${escapeHtml(data.error)}</div>
+            <div class="result-title">❌ Error</div>
+            <div class="result-content">${escapeHtml(data.error || 'Unknown error occurred')}</div>
           `;
         }
       } catch (err) {
@@ -377,10 +355,10 @@
         resultDiv.className = "result show error";
         resultDiv.innerHTML = `
           <div class="result-title">❌ Connection Error</div>
-          <div class="result-content">Failed to connect. Make sure the server is running.</div>
+          <div class="result-content">Failed to connect to server. Please make sure the backend is running.</div>
         `;
       } finally {
-        if (!resultDiv.innerHTML.includes("wait")) {
+        if (!resultDiv.innerHTML.includes("countdown") && !resultDiv.innerHTML.includes("Retry in")) {
           btn.disabled = false;
           btn.textContent = "Generate";
         }

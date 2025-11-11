@@ -4,49 +4,20 @@ from fastapi.middleware.cors import CORSMiddleware
 import google.generativeai as genai
 from dotenv import load_dotenv
 import os
-import time
 import requests
-from datetime import datetime, timedelta
 
-# Load environment variables
 load_dotenv()
 
-# Get API keys
 gemini_key = os.getenv("GOOGLE_API_KEY")
-giphy_key = os.getenv("GIPHY_API_KEY", "")  # Optional: Get free key from developers.giphy.com
+giphy_key = os.getenv("GIPHY_API_KEY", "")
 
 if not gemini_key:
-    raise ValueError("❌ GOOGLE_API_KEY not found in .env file!")
+    raise ValueError("❌ GOOGLE_API_KEY not found!")
 
-# Configure Gemini API
 genai.configure(api_key=gemini_key)
 
-# Simple rate limiting tracker
-request_times = []
-MAX_REQUESTS_PER_MINUTE = 2
+app = FastAPI(title="Gemini API Integration", version="3.0")
 
-def check_rate_limit():
-    """Check if we're within rate limits"""
-    global request_times
-    now = datetime.now()
-    request_times = [t for t in request_times if now - t < timedelta(minutes=1)]
-    
-    if len(request_times) >= MAX_REQUESTS_PER_MINUTE:
-        oldest_request = min(request_times)
-        wait_time = 60 - (now - oldest_request).total_seconds()
-        return False, int(wait_time)
-    
-    request_times.append(now)
-    return True, 0
-
-# Create FastAPI app
-app = FastAPI(
-    title="Gemini API Integration with Media",
-    description="FastAPI app with Gemini AI and GIF search integration",
-    version="2.0"
-)
-
-# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -57,7 +28,6 @@ app.add_middleware(
 
 @app.get("/home", response_class=HTMLResponse)
 async def home_page():
-    """Serve the HTML interface"""
     try:
         with open("index.html", "r", encoding="utf-8") as f:
             return f.read()
@@ -66,245 +36,158 @@ async def home_page():
 
 @app.get("/")
 async def root():
-    """Root endpoint with API information"""
     return {
-        "message": "✅ Welcome to Gemini API Integration with Media!",
+        "message": "✅ Gemini API Integration - v3.0",
+        "status": "running",
         "endpoints": {
-            "/home": "Access the web interface",
-            "/generate": "Generate GIF/video ideas with Gemini AI",
-            "/search-gif": "Search for actual GIFs based on keywords",
-            "/models": "List available Gemini models"
-        },
-        "features": [
-            "AI-powered content idea generation",
-            "Real GIF search and display",
-            "Rate limiting protection",
-            "Professional error handling"
-        ]
+            "/home": "Web interface",
+            "/generate": "Generate content",
+            "/search-gif": "Search GIFs"
+        }
     }
 
-@app.get("/models")
-async def list_models():
-    """List available Gemini models and test which ones work"""
-    try:
-        all_models = genai.list_models()
-        generate_models = []
-        all_model_info = []
-        
-        for m in all_models:
-            model_info = {
-                "name": m.name,
-                "display_name": m.display_name if hasattr(m, 'display_name') else m.name,
-                "supported_methods": m.supported_generation_methods
-            }
-            all_model_info.append(model_info)
-            
-            if 'generateContent' in m.supported_generation_methods:
-                generate_models.append(model_info)
-        
-        # Test which models actually work
-        working_models = []
-        test_models = [
-            "gemini-2.0-flash-exp",
-            "gemini-exp-1206", 
-            "gemini-2.0-flash",
-            "gemini-1.5-pro",
-            "gemini-1.5-flash",
-            "gemini-pro"
-        ]
-        
-        for model_name in test_models:
-            try:
-                test_model = genai.GenerativeModel(model_name)
-                # Try a simple generation to verify it works
-                test_response = test_model.generate_content("Hi")
-                if test_response.text:
-                    working_models.append({
-                        "name": model_name,
-                        "status": "✅ Working",
-                        "test_response_length": len(test_response.text)
-                    })
-            except Exception as e:
-                working_models.append({
-                    "name": model_name,
-                    "status": "❌ Not Available",
-                    "error": str(e)[:100]
-                })
-        
-        return {
-            "status": "success",
-            "working_models": working_models,
-            "all_models_with_generateContent": generate_models,
-            "total_models_found": len(all_model_info),
-            "recommendation": "Use the first working model from the list"
-        }
-    except Exception as e:
-        return JSONResponse({"status": "error", "error": str(e)}, status_code=500)
-
 @app.get("/search-gif")
-async def search_gif(query: str = Query(..., description="Search term for GIF")):
-    """
-    Search for GIFs using Giphy API (or Tenor as fallback)
-    """
+async def search_gif(query: str = Query(..., description="Search term")):
     try:
-        # Try Giphy first (if API key available)
         if giphy_key:
             url = f"https://api.giphy.com/v1/gifs/search?api_key={giphy_key}&q={query}&limit=6&rating=g"
             response = requests.get(url, timeout=5)
             
             if response.status_code == 200:
                 data = response.json()
-                gifs = []
-                for item in data.get('data', [])[:6]:
-                    gifs.append({
+                gifs = [
+                    {
                         "url": item['images']['fixed_height']['url'],
                         "title": item.get('title', 'GIF'),
                         "source": "Giphy"
-                    })
-                
-                return {
-                    "status": "success",
-                    "query": query,
-                    "gifs": gifs,
-                    "count": len(gifs)
-                }
+                    }
+                    for item in data.get('data', [])[:6]
+                ]
+                return {"status": "success", "query": query, "gifs": gifs, "count": len(gifs)}
         
-        # Fallback to Tenor (no API key needed for basic usage)
+        # Fallback to Tenor
         tenor_url = f"https://tenor.googleapis.com/v2/search?q={query}&key=AIzaSyAyimkuYQYF_FXVALexPuGQctUWRURdCYQ&limit=6"
         response = requests.get(tenor_url, timeout=5)
         
         if response.status_code == 200:
             data = response.json()
-            gifs = []
-            for item in data.get('results', [])[:6]:
-                gifs.append({
+            gifs = [
+                {
                     "url": item['media_formats']['gif']['url'],
                     "title": item.get('content_description', 'GIF'),
                     "source": "Tenor"
-                })
-            
-            return {
-                "status": "success",
-                "query": query,
-                "gifs": gifs,
-                "count": len(gifs)
-            }
+                }
+                for item in data.get('results', [])[:6]
+            ]
+            return {"status": "success", "query": query, "gifs": gifs, "count": len(gifs)}
         
-        return JSONResponse(
-            {"status": "error", "error": "Failed to fetch GIFs"},
-            status_code=500
-        )
+        return JSONResponse({"status": "error", "error": "Failed to fetch GIFs"}, status_code=500)
         
     except Exception as e:
-        return JSONResponse(
-            {"status": "error", "error": f"GIF search failed: {str(e)}"},
-            status_code=500
-        )
+        return JSONResponse({"status": "error", "error": str(e)}, status_code=500)
 
 @app.get("/generate")
 async def generate(
-    prompt: str = Query(..., description="Enter prompt text for Gemini AI"),
-    include_media: bool = Query(False, description="Also search for related GIFs")
+    prompt: str = Query(..., description="Prompt text"),
+    include_media: bool = Query(False, description="Include GIFs")
 ):
-    """
-    Generate creative content using Gemini AI and optionally find related GIFs
-    """
     try:
-        # Check rate limit
-        can_proceed, wait_time = check_rate_limit()
-        if not can_proceed:
-            return JSONResponse(
-                {
-                    "status": "rate_limited",
-                    "error": f"Rate limit exceeded. Free tier allows {MAX_REQUESTS_PER_MINUTE} requests per minute.",
-                    "wait_seconds": wait_time,
-                    "message": f"Please wait {wait_time} seconds before trying again."
-                },
-                status_code=429
-            )
+        if not prompt or not prompt.strip():
+            return JSONResponse({"status": "error", "error": "Prompt cannot be empty"}, status_code=400)
         
-        if not prompt or len(prompt.strip()) == 0:
-            return JSONResponse(
-                {"status": "error", "error": "Prompt cannot be empty"}, 
-                status_code=400
-            )
-        
-        # Try models - using the latest Gemini 2.x models
-        model_names = [
-            "gemini-2.0-flash-exp",      # Gemini 2.0 Flash (fastest)
-            "gemini-exp-1206",            # Gemini 2.5 Pro experimental
-            "gemini-2.0-flash",           # Stable Gemini 2.0 Flash
-            "gemini-pro"                  # Fallback
-        ]
+        # Try models in order
+        models_to_try = ["gemini-2.0-flash", "gemini-2.5-pro", "gemini-pro"]
         model = None
         model_name = None
         
-        for name in model_names:
+        for name in models_to_try:
             try:
                 model = genai.GenerativeModel(name)
                 model_name = name
-                print(f"✅ Successfully using model: {name}")
                 break
-            except Exception as e:
-                print(f"❌ Failed to use model {name}: {str(e)}")
+            except:
                 continue
         
         if not model:
-            raise Exception("No available models found")
-        
-        # Generate AI response
-        response = model.generate_content(prompt)
-        
-        if not response.text:
             return JSONResponse(
-                {"status": "error", "error": "No response generated"}, 
+                {"status": "error", "error": "No Gemini models available"},
+                status_code=503
+            )
+        
+        # Generate content
+        try:
+            print(f"📝 Generating with {model_name}: {prompt[:50]}...")
+            response = model.generate_content(prompt)
+            
+            if not response or not response.text:
+                return JSONResponse(
+                    {"status": "error", "error": "Empty response from API"},
+                    status_code=500
+                )
+            
+            result = {
+                "status": "success",
+                "model_used": model_name,
+                "prompt": prompt,
+                "output": response.text,
+                "idea": response.text
+            }
+            
+            # Add GIFs if requested
+            if include_media:
+                keywords = prompt.lower()
+                for word in ["create", "generate", "gif", "video", "make", "show", "design", "a", "the"]:
+                    keywords = keywords.replace(word, "")
+                keywords = " ".join(keywords.split())[:50]
+                
+                if keywords:
+                    try:
+                        gif_data = await search_gif(keywords)
+                        if isinstance(gif_data, dict) and gif_data.get("status") == "success":
+                            result["related_gifs"] = gif_data.get("gifs", [])
+                    except:
+                        pass
+            
+            print(f"✅ Success!")
+            return JSONResponse(result)
+            
+        except Exception as e:
+            error_msg = str(e)
+            print(f"❌ API Error: {error_msg}")
+            
+            # Handle rate limiting from Google
+            if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg or "quota" in error_msg.lower():
+                return JSONResponse(
+                    {
+                        "status": "quota_exceeded",
+                        "error": "Google Gemini API rate limit exceeded",
+                        "wait_seconds": 60,
+                        "message": "Google's free tier has strict limits. Please wait 60 seconds.",
+                        "tip": "Get a new API key from https://aistudio.google.com/apikey or upgrade your quota"
+                    },
+                    status_code=429
+                )
+            
+            # Handle authentication errors
+            if "API" in error_msg and ("key" in error_msg.lower() or "auth" in error_msg.lower()):
+                return JSONResponse(
+                    {
+                        "status": "error",
+                        "error": "API key issue",
+                        "message": "Your Google API key may be invalid. Get a new one from https://aistudio.google.com/apikey"
+                    },
+                    status_code=401
+                )
+            
+            # Generic error
+            return JSONResponse(
+                {"status": "error", "error": f"Generation failed: {error_msg[:150]}"},
                 status_code=500
             )
-        
-        result = {
-            "status": "success",
-            "model_used": model_name,
-            "prompt": prompt,
-            "output": response.text,
-            "idea": response.text,
-            "requests_remaining": MAX_REQUESTS_PER_MINUTE - len(request_times)
-        }
-        
-        # Optionally search for related GIFs
-        if include_media:
-            # Extract keywords from prompt for GIF search
-            keywords = prompt.lower().replace("create", "").replace("generate", "").replace("gif", "").replace("video", "").strip()
-            if len(keywords) > 50:
-                keywords = keywords[:50]
-            
-            try:
-                gif_response = await search_gif(keywords)
-                if gif_response.get("status") == "success":
-                    result["related_gifs"] = gif_response.get("gifs", [])
-            except:
-                pass  # Don't fail if GIF search fails
-        
-        return JSONResponse(result)
     
     except Exception as e:
-        error_str = str(e)
-        if "429" in error_str or "quota" in error_str.lower():
-            import re
-            wait_match = re.search(r'retry in (\d+)', error_str)
-            wait_seconds = int(wait_match.group(1)) if wait_match else 60
-            
-            return JSONResponse(
-                {
-                    "status": "quota_exceeded",
-                    "error": "API quota exceeded. Free tier limit: 2 requests per minute.",
-                    "wait_seconds": wait_seconds,
-                    "message": f"Please wait {wait_seconds} seconds and try again."
-                },
-                status_code=429
-            )
-        
-        print(f"❌ Error: {str(e)}")
+        print(f"❌ Unexpected error: {str(e)}")
         return JSONResponse(
-            {"status": "error", "error": f"Failed to generate content: {str(e)}"},
+            {"status": "error", "error": f"Unexpected error: {str(e)[:150]}"},
             status_code=500
         )
