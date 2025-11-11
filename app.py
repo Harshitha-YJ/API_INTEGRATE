@@ -231,7 +231,8 @@ async def generate(
         
         # Try models - using the latest Gemini 2.x models
         model_names = [
-            "gemini-2.5-pro",      # Gemini 2.0 Flash (fastest)
+            "gemini-2.0-flash-exp",      # Gemini 2.0 Flash (fastest)
+            "gemini-exp-1206",            # Gemini 2.5 Pro experimental
             "gemini-2.0-flash",           # Stable Gemini 2.0 Flash
             "gemini-pro"                  # Fallback
         ]
